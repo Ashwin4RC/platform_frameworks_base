@@ -171,11 +171,6 @@ public final class BatteryService extends SystemService {
 
     private boolean mBatteryLevelLow;
 
-    private boolean mTurboPower;
-    private boolean mHasTurboPower;
-    private boolean mLastTurboPower;
-
-
     private long mDischargeStartTime;
     private int mDischargeStartLevel;
 
@@ -218,8 +213,6 @@ public final class BatteryService extends SystemService {
         mBatteryStats = BatteryStatsService.getService();
         mActivityManagerInternal = LocalServices.getService(ActivityManagerInternal.class);
 
-        mHasTurboPower = mContext.getResources().getBoolean(
-                com.android.internal.R.bool.config_hasTurboPowerCharger);
         mCriticalBatteryLevel = mContext.getResources().getInteger(
                 com.android.internal.R.integer.config_criticalBatteryWarningLevel);
         mLowBatteryWarningLevel = mContext.getResources().getInteger(
@@ -565,8 +558,6 @@ public final class BatteryService extends SystemService {
         shutdownIfNoPowerLocked();
         shutdownIfOverTempLocked();
 
-        mTurboPower = mHasTurboPower && isTurboPower();
-
         if (force || (mHealthInfo.batteryStatus != mLastBatteryStatus ||
                 mHealthInfo.batteryHealth != mLastBatteryHealth ||
                 mHealthInfo.batteryPresent != mLastBatteryPresent ||
@@ -577,8 +568,7 @@ public final class BatteryService extends SystemService {
                 mHealthInfo.maxChargingCurrent != mLastMaxChargingCurrent ||
                 mHealthInfo.maxChargingVoltage != mLastMaxChargingVoltage ||
                 mHealthInfo.batteryChargeCounter != mLastChargeCounter ||
-                mInvalidCharger != mLastInvalidCharger ||
-                mTurboPower != mLastTurboPower)) {
+                mInvalidCharger != mLastInvalidCharger)) {
 
             if (mPlugType != mLastPlugType) {
                 if (mLastPlugType == BATTERY_PLUGGED_NONE) {
@@ -749,11 +739,10 @@ public final class BatteryService extends SystemService {
             mLastChargeCounter = mHealthInfo.batteryChargeCounter;
             mLastBatteryLevelCritical = mBatteryLevelCritical;
             mLastInvalidCharger = mInvalidCharger;
-            mLastTurboPower = mTurboPower;
         }
     }
 
- private void sendBatteryChangedIntentLocked() {
+    private void sendBatteryChangedIntentLocked() {
         //  Pack up the values and broadcast them to everyone
         final Intent intent = new Intent(Intent.ACTION_BATTERY_CHANGED);
         intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY
@@ -777,7 +766,6 @@ public final class BatteryService extends SystemService {
         intent.putExtra(BatteryManager.EXTRA_MAX_CHARGING_CURRENT, mHealthInfo.maxChargingCurrent);
         intent.putExtra(BatteryManager.EXTRA_MAX_CHARGING_VOLTAGE, mHealthInfo.maxChargingVoltage);
         intent.putExtra(BatteryManager.EXTRA_CHARGE_COUNTER, mHealthInfo.batteryChargeCounter);
-        intent.putExtra(BatteryManager.EXTRA_TURBO_POWER, mTurboPower);
         if (DEBUG) {
             Slog.d(TAG, "Sending ACTION_BATTERY_CHANGED. scale:" + BATTERY_SCALE
                     + ", info:" + mHealthInfo.toString());
@@ -828,20 +816,6 @@ public final class BatteryService extends SystemService {
         mContext.sendBroadcastAsUser(intent, UserHandle.ALL,
                 android.Manifest.permission.BATTERY_STATS);
         mLastBatteryLevelChangedSentMs = SystemClock.elapsedRealtime();
-    }
-
-    private boolean isTurboPower() {
-        try {
-            FileReader file = new FileReader("/sys/class/power_supply/battery/charge_rate");
-            BufferedReader br = new BufferedReader(file);
-            String state = br.readLine();
-            br.close();
-            file.close();
-            return "Turbo".equals(state);
-        } catch (FileNotFoundException e) {
-        } catch (IOException e) {
-        }
-        return false;
     }
 
     private void logBatteryStatsLocked() {
