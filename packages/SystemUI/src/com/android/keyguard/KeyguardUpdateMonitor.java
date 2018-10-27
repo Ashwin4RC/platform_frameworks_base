@@ -812,10 +812,11 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener {
                 } else {
                     maxChargingMicroWatt = -1;
                 }
+                final boolean turboPowerStatus = intent.getBooleanExtra(EXTRA_TURBO_POWER, false);
                 final Message msg = mHandler.obtainMessage(
                         MSG_BATTERY_UPDATE, new BatteryStatus(status, level, plugged, health,
                                 maxChargingMicroAmp, maxChargingMicroVolt, maxChargingMicroWatt,
-                                temperature));
+                                temperature, turboPowerStatus));
                 mHandler.sendMessage(msg);
             } else if (TelephonyIntents.ACTION_SIM_STATE_CHANGED.equals(action)) {
                 // ACTION_SIM_STATE_CHANGED is rebroadcast after unlocking the device to
@@ -1003,6 +1004,7 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener {
         public static final int CHARGING_SLOWLY = 0;
         public static final int CHARGING_REGULAR = 1;
         public static final int CHARGING_FAST = 2;
+        public static final int CHARGING_TURBO_POWER = 3;
 
         public final int status;
         public final int level;
@@ -1012,9 +1014,10 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener {
         public final int maxChargingVoltage;
         public final int maxChargingWattage;
         public final int temperature;
+        public final boolean turboPowerStatus;
         public BatteryStatus(int status, int level, int plugged, int health,
                 int maxChargingCurrent, int maxChargingVoltage, int maxChargingWattage,
-                int temperature) {
+                int temperature,  boolean turboPowerStatus) {
             this.status = status;
             this.level = level;
             this.plugged = plugged;
@@ -1023,6 +1026,7 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener {
             this.maxChargingVoltage = maxChargingVoltage;
             this.maxChargingWattage = maxChargingWattage;
             this.temperature = temperature;
+            this.turboPowerStatus = turboPowerStatus;
         }
 
         /**
@@ -1063,7 +1067,8 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener {
         }
 
         public final int getChargingSpeed(int slowThreshold, int fastThreshold) {
-            return maxChargingWattage <= 0 ? CHARGING_UNKNOWN :
+            return turboPowerStatus ? CHARGING_TURBO_POWER :
+                    maxChargingWattage <= 0 ? CHARGING_UNKNOWN :
                     maxChargingWattage < slowThreshold ? CHARGING_SLOWLY :
                     maxChargingWattage > fastThreshold ? CHARGING_FAST :
                     CHARGING_REGULAR;
@@ -1766,6 +1771,10 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener {
 
         // change in charging current while plugged in
         if (nowPluggedIn && current.maxChargingWattage != old.maxChargingWattage) {
+            return true;
+        }
+        // change in turbo power charging while plugged in
+        if (nowPluggedIn && current.turboPowerStatus != old.turboPowerStatus) {
             return true;
         }
 
